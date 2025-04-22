@@ -2,244 +2,217 @@ import pygame
 import random
 import sys
 
-# Inicialización
 pygame.init()
-ANCHO, ALTO = 900, 650
+
+ANCHO, ALTO = 800, 600
 VENTANA = pygame.display.set_mode((ANCHO, ALTO))
-pygame.display.set_caption("Juego de Cartas - Batalla de Fuerzas")
+pygame.display.set_caption("Juego de Cartas vs CPU")
 
-# Configuración visual mejorada
-COLORES = {
-    "fondo": (30, 30, 40),
-    "texto": (240, 240, 240),
-    "jugador": (70, 130, 200),
-    "cpu": (200, 70, 100),
-    "seleccion": (100, 200, 100),
-    "borde": (180, 160, 100),
-    "btn": (80, 80, 100),
-    "btn_hover": (110, 110, 130)
-}
+FUENTE = pygame.font.SysFont("arial", 24)
+GRANDE = pygame.font.SysFont("arial", 48)
+BLANCO = (255, 255, 255)
+NEGRO = (0, 0, 0)
+ROJO = (200, 0, 0)
+VERDE = (0, 180, 0)
+GRIS = (100, 100, 100)
 
-FUENTE_NORMAL = pygame.font.SysFont("Arial", 26, bold=True)
-FUENTE_GRANDE = pygame.font.SysFont("Arial", 42, bold=True)
-FUENTE_CARTA = pygame.font.SysFont("Arial", 22, bold=True)
+pygame.mixer.init()
+sound_click = pygame.mixer.Sound(pygame.mixer.Sound(pygame.mixer.Sound.get_raw(pygame.mixer.Sound(pygame.mixer.Sound.get_raw(pygame.mixer.Sound(b'\x00'))))))
 
-# Funciones para cartas
-def crear_carta(nombre, fuerza, bonus=0):
-    """Crea una carta como diccionario"""
-    return {"nombre": nombre, "fuerza": fuerza, "bonus": bonus}
+class Carta:
+    def __init__(self, nombre, potencia, potenciador=0):
+        self.nombre = nombre
+        self.potencia = potencia
+        self.potenciador = potenciador
 
-def fuerza_total(carta):
-    """Calcula la fuerza total de una carta"""
-    return carta["fuerza"] + carta["bonus"]
+    def obtener_potencia_total(self):
+        return self.potencia + self.potenciador
 
-def texto_carta(carta):
-    """Devuelve el texto para mostrar la carta"""
-    return f"{carta['nombre']} (F:{carta['fuerza']}+{carta['bonus']})"
+    def __str__(self):
+        return f"{self.nombre} (Pot: {self.potencia}, +{self.potenciador})"
 
-# Funciones del juego
-def crear_mazo():
-    """Crea y baraja un mazo de cartas"""
-    tipos = ["Guerrero", "Mago", "Arquero", "Dragón", "Caballero", "Hechicera", "Titán", "Bestia"]
-    mazo = []
-    for tipo in tipos:
-        for _ in range(3):
-            mazo.append(crear_carta(tipo, random.randint(1, 10), random.randint(0, 3)))
-    random.shuffle(mazo)
-    return mazo
+def crear_baraja():
+    nombres = [
+        "Guerrero", "Hechicera", "Arquero", "Bestia", "Ladrón", "Mago",
+        "Paladín", "Dragón", "Asesino", "Titán", "Caballero", "Gólem"
+    ]
+    baraja = []
+    for nombre in nombres:
+        potencia = random.randint(3, 10)
+        potenciador = random.randint(0, 2)
+        baraja.append(Carta(nombre, potencia, potenciador))
+    random.shuffle(baraja)
+    return baraja
 
-def repartir_cartas(mazo, cantidad):
-    """Reparte cartas del mazo"""
-    return [mazo.pop(0) for _ in range(cantidad)] if len(mazo) >= cantidad else mazo.copy()
+def dibujar_mano(mano, y, seleccionado=None):
+    for i, carta in enumerate(mano):
+        x = 20 + i * 160
+        color = VERDE if i == seleccionado else BLANCO
+        pygame.draw.rect(VENTANA, color, (x, y, 150, 100))
+        texto = FUENTE.render(str(carta), True, NEGRO)
+        VENTANA.blit(texto, (x + 5, y + 40))
 
-# Funciones visuales mejoradas
-def dibujar_fondo():
-    """Dibuja un fondo con degradado"""
-    for i in range(ALTO):
-        color = (max(10, 30 - i//30), max(10, 30 - i//30), max(20, 40 - i//30))
-        pygame.draw.line(VENTANA, color, (0, i), (ANCHO, i))
-    # Barra superior e inferior
-    pygame.draw.rect(VENTANA, (40, 40, 60), (0, 0, ANCHO, 80))
-    pygame.draw.rect(VENTANA, (20, 20, 30), (0, ALTO-100, ANCHO, 100))
+def elegir_carta_cpu(mano):
+    seleccion = min(mano, key=lambda c: c.obtener_potencia_total())
+    mano.remove(seleccion)
+    return seleccion
 
-def dibujar_carta(x, y, carta, seleccionada=False, es_cpu=False):
-    """Dibuja una carta con mejor aspecto visual"""
-    color_fondo = COLORES["cpu"] if es_cpu else COLORES["jugador"]
-    if seleccionada:
-        color_fondo = COLORES["seleccion"]
-    
-    # Borde de la carta
-    pygame.draw.rect(VENTANA, COLORES["borde"], (x-3, y-3, 146, 96), border_radius=8)
-    # Cuerpo de la carta
-    pygame.draw.rect(VENTANA, color_fondo, (x, y, 140, 90), border_radius=6)
-    
-    # Nombre de la carta
-    nombre = FUENTE_CARTA.render(carta["nombre"], True, COLORES["texto"])
-    VENTANA.blit(nombre, (x + 10, y + 10))
-    
-    # Estadísticas
-    fuerza = FUENTE_NORMAL.render(f"Fuerza: {carta['fuerza']}", True, COLORES["texto"])
-    bonus = FUENTE_NORMAL.render(f"Bonus: +{carta['bonus']}", True, COLORES["texto"])
-    total = FUENTE_NORMAL.render(f"Total: {fuerza_total(carta)}", True, COLORES["texto"])
-    
-    VENTANA.blit(fuerza, (x + 10, y + 35))
-    VENTANA.blit(bonus, (x + 10, y + 55))
-    VENTANA.blit(total, (x + 10, y + 75))
+def menu():
+    reloj = pygame.time.Clock()
+    opciones = ["JUGAR", "INSTRUCCIONES", "CRÉDITOS", "SALIR"]
+    seleccion = 0
 
-def dibujar_boton(x, y, ancho, alto, texto):
-    """Dibuja un botón con efecto hover"""
-    mouse_x, mouse_y = pygame.mouse.get_pos()
-    hover = (x <= mouse_x <= x + ancho and y <= mouse_y <= y + alto)
-    
-    color = COLORES["btn_hover"] if hover else COLORES["btn"]
-    pygame.draw.rect(VENTANA, color, (x, y, ancho, alto), border_radius=8)
-    pygame.draw.rect(VENTANA, COLORES["texto"], (x, y, ancho, alto), 2, border_radius=8)
-    
-    texto_btn = FUENTE_NORMAL.render(texto, True, COLORES["texto"])
-    VENTANA.blit(texto_btn, (x + ancho//2 - texto_btn.get_width()//2, 
-                            y + alto//2 - texto_btn.get_height()//2))
-    return hover
-
-def mostrar_mensaje(texto, y=250, fuente=FUENTE_GRANDE, color=COLORES["texto"]):
-    """Muestra un mensaje centrado en pantalla"""
-    texto_render = fuente.render(texto, True, color)
-    VENTANA.blit(texto_render, (ANCHO//2 - texto_render.get_width()//2, y))
-
-# Función principal del juego
-def jugar():
-    """Controla el flujo principal del juego"""
-    mazo_jugador = crear_mazo()
-    mazo_cpu = crear_mazo()
-    
-    mano_jugador = repartir_cartas(mazo_jugador, 5)
-    mano_cpu = repartir_cartas(mazo_cpu, 5)
-    
-    seleccion = -1
-    turno = 1
-    mensaje = ""
-    carta_jugada_cpu = None
-    puntaje = [0, 0]  # [jugador, cpu]
-    
     while True:
-        # Dibujado
-        dibujar_fondo()
-        
-        # Título
-        titulo = FUENTE_GRANDE.render("Batalla de Cartas", True, COLORES["texto"])
-        VENTANA.blit(titulo, (ANCHO//2 - titulo.get_width()//2, 20))
-        
-        # Marcador
-        marcador = FUENTE_NORMAL.render(f"Jugador: {puntaje[0]}  -  CPU: {puntaje[1]}", 
-                                      True, COLORES["texto"])
-        VENTANA.blit(marcador, (ANCHO//2 - marcador.get_width()//2, 70))
-        
-        # Turno actual
-        texto_turno = FUENTE_NORMAL.render(f"Turno: {turno}", True, COLORES["texto"])
-        VENTANA.blit(texto_turno, (ANCHO - 150, 70))
-        
-        # Eventos
+        VENTANA.fill(NEGRO)
+        titulo = GRANDE.render("Juego de Cartas vs CPU", True, BLANCO)
+        VENTANA.blit(titulo, (ANCHO//2 - titulo.get_width()//2, 100))
+
+        for i, opcion in enumerate(opciones):
+            color = VERDE if i == seleccion else GRIS
+            pygame.draw.rect(VENTANA, color, (ANCHO//2 - 150, 200 + i*70, 300, 50))
+            texto = FUENTE.render(opcion, True, NEGRO)
+            VENTANA.blit(texto, (ANCHO//2 - texto.get_width()//2, 215 + i*70))
+
+        pygame.display.flip()
+
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
-                mouse_x, mouse_y = pygame.mouse.get_pos()
-                # Verificar clic en cartas del jugador
-                for i in range(len(mano_jugador)):
-                    carta_x = 50 + i * 160
-                    carta_y = 450
-                    if carta_x <= mouse_x <= carta_x + 140 and carta_y <= mouse_y <= carta_y + 90:
-                        seleccion = i
-        
-        # Lógica del turno
-        if seleccion != -1 and mensaje == "" and 0 <= seleccion < len(mano_jugador):
-            carta_jugador = mano_jugador.pop(seleccion)
-            
-            if mano_cpu:  # Asegurar que la CPU tenga cartas
-                carta_cpu = min(mano_cpu, key=fuerza_total)
-                mano_cpu.remove(carta_cpu)
-                carta_jugada_cpu = carta_cpu
-                
-                # Comparar fuerzas
-                if fuerza_total(carta_jugador) > fuerza_total(carta_cpu):
-                    mensaje = "¡Ganaste este turno!"
-                    puntaje[0] += 1
-                elif fuerza_total(carta_jugador) < fuerza_total(carta_cpu):
-                    mensaje = "La CPU ganó este turno"
-                    puntaje[1] += 1
-                else:
-                    mensaje = "¡Empate!"
-                
-                # Reponer cartas
-                if mazo_jugador and len(mano_jugador) < 5:
-                    mano_jugador.append(mazo_jugador.pop(0))
-                if mazo_cpu and len(mano_cpu) < 5:
-                    mano_cpu.append(mazo_cpu.pop(0))
-                
-                turno += 1
-                seleccion = -1
-        
-        # Cartas CPU
-        texto_cpu = FUENTE_NORMAL.render("Cartas de la CPU:", True, COLORES["texto"])
-        VENTANA.blit(texto_cpu, (50, 120))
-        for i, carta in enumerate(mano_cpu):
-            dibujar_carta(50 + i * 160, 150, carta, False, True)
-        
-        # Cartas jugador
-        texto_jugador = FUENTE_NORMAL.render("Tus cartas:", True, COLORES["texto"])
-        VENTANA.blit(texto_jugador, (50, 420))
-        for i, carta in enumerate(mano_jugador):
-            dibujar_carta(50 + i * 160, 450, carta, i == seleccion)
-        
-        # Carta jugada por CPU
-        if carta_jugada_cpu:
-            texto_cpu_jugada = FUENTE_NORMAL.render(
-                f"La CPU jugó: {carta_jugada_cpu['nombre']} (Total: {fuerza_total(carta_jugada_cpu)})", 
-                True, COLORES["texto"])
-            VENTANA.blit(texto_cpu_jugada, (50, 380))
-        
-        # Mensaje y botón continuar
-        if mensaje:
-            color_mensaje = COLORES["jugador"] if "Ganaste" in mensaje else \
-                           COLORES["cpu"] if "CPU" in mensaje else \
-                           COLORES["texto"]
-            mostrar_mensaje(mensaje, 300, FUENTE_GRANDE, color_mensaje)
-            
-            if dibujar_boton(ANCHO//2 - 100, 350, 200, 50, "Continuar"):
-                if pygame.mouse.get_pressed()[0]:
-                    mensaje = ""
-                    carta_jugada_cpu = None
-        
-        # Fin del juego
-        if not mano_jugador or not mano_cpu:
-            if puntaje[0] > puntaje[1]:
-                resultado = "¡Ganaste la partida! 🎉"
-                color_resultado = COLORES["jugador"]
-            elif puntaje[0] < puntaje[1]:
-                resultado = "¡La CPU ganó la partida!"
-                color_resultado = COLORES["cpu"]
-            else:
-                resultado = "¡Empate final!"
-                color_resultado = (200, 200, 100)
-            
-            mostrar_mensaje(resultado, 250, FUENTE_GRANDE, color_resultado)
-            mostrar_mensaje(f"Marcador final: {puntaje[0]} - {puntaje[1]}", 300)
-            
-            if dibujar_boton(ANCHO//2 - 100, 350, 200, 50, "Jugar otra vez"):
-                if pygame.mouse.get_pressed()[0]:
-                    return jugar()  # Reinicia el juego
-            
-            if dibujar_boton(ANCHO//2 - 100, 420, 200, 50, "Salir"):
-                if pygame.mouse.get_pressed()[0]:
-                    pygame.quit()
-                    sys.exit()
-            
-            pygame.display.flip()
-            pygame.time.delay(100)
-            continue
-        
+            elif evento.type == pygame.KEYDOWN:
+                if evento.key == pygame.K_UP:
+                    seleccion = (seleccion - 1) % len(opciones)
+                elif evento.key == pygame.K_DOWN:
+                    seleccion = (seleccion + 1) % len(opciones)
+                elif evento.key == pygame.K_RETURN:
+                    sound_click.play()
+                    if opciones[seleccion] == "JUGAR":
+                        return
+                    elif opciones[seleccion] == "INSTRUCCIONES":
+                        mostrar_instrucciones()
+                    elif opciones[seleccion] == "CRÉDITOS":
+                        mostrar_creditos()
+                    elif opciones[seleccion] == "SALIR":
+                        pygame.quit()
+                        sys.exit()
+        reloj.tick(30)
+
+def mostrar_instrucciones():
+    mostrar_texto(["Reglas del Juego:",
+                  "- Se juega contra la CPU.",
+                  "- Cada uno tiene un mazo de 12 cartas y recibe 4.",
+                  "- Se juega una carta por turno.",
+                  "- Gana la carta con más potencia.",
+                  "- Se descuenta la potencia de la perdedora a la ganadora.",
+                  "- Pierde quien se quede sin cartas.",
+                  "Presiona cualquier tecla para volver al menú."])
+
+def mostrar_creditos():
+    mostrar_texto(["Créditos:", "Desarrollado por Franco Sabetay, Nahuel Kryc, Nacho lemarie, Juan Savedra.", "¡Gracias por jugar!", "Presiona cualquier tecla para volver al menú."])
+
+def mostrar_texto(lineas):
+    esperando = True
+    while esperando:
+        VENTANA.fill(NEGRO)
+        for i, linea in enumerate(lineas):
+            texto = FUENTE.render(linea, True, BLANCO)
+            VENTANA.blit(texto, (ANCHO//2 - texto.get_width()//2, 100 + i*40))
         pygame.display.flip()
 
-# Iniciar el juego
+        for evento in pygame.event.get():
+            if evento.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif evento.type == pygame.KEYDOWN:
+                esperando = False
+
+
+def main():
+    menu()
+
+    jugador = {"mazo": crear_baraja(), "mano": []}
+    cpu = {"mazo": crear_baraja(), "mano": []}
+    for _ in range(4):
+        jugador["mano"].append(jugador["mazo"].pop(0))
+        cpu["mano"].append(cpu["mazo"].pop(0))
+
+    seleccion = None
+    reloj = pygame.time.Clock()
+    turno = 1
+    resultado_turno = ""
+    carta_cpu_actual = None
+
+    corriendo = True
+    while corriendo:
+        VENTANA.fill(NEGRO)
+        eventos = pygame.event.get()
+        for evento in eventos:
+            if evento.type == pygame.QUIT:
+                corriendo = False
+            elif evento.type == pygame.MOUSEBUTTONDOWN:
+                mx, my = pygame.mouse.get_pos()
+                for i in range(len(jugador["mano"])):
+                    if 20 + i * 160 < mx < 170 + i * 160 and 450 < my < 550:
+                        seleccion = i
+                        sound_click.play()
+
+        if seleccion is not None:
+            carta_jugador = jugador["mano"].pop(seleccion)
+            carta_cpu = elegir_carta_cpu(cpu["mano"])
+            pot_j = carta_jugador.obtener_potencia_total()
+            pot_c = carta_cpu.obtener_potencia_total()
+            carta_cpu_actual = carta_cpu
+
+            if pot_j > pot_c:
+                carta_jugador.potencia -= pot_c
+                resultado_turno = "Ganaste el turno"
+                if carta_jugador.potencia > 0:
+                    jugador["mano"].append(carta_jugador)
+            elif pot_c > pot_j:
+                carta_cpu.potencia -= pot_j
+                resultado_turno = "CPU ganó el turno"
+                if carta_cpu.potencia > 0:
+                    cpu["mano"].append(carta_cpu)
+            else:
+                resultado_turno = "Empate"
+
+            for p in [jugador, cpu]:
+                if p["mazo"]:
+                    p["mano"].append(p["mazo"].pop(0))
+
+            seleccion = None
+            turno += 1
+
+        dibujar_mano(cpu["mano"], 50)
+        dibujar_mano(jugador["mano"], 450, seleccion)
+
+        texto_turno = FUENTE.render(f"Turno {turno}", True, BLANCO)
+        VENTANA.blit(texto_turno, (ANCHO // 2 - 50, 10))
+
+        if carta_cpu_actual:
+            cpu_ult = FUENTE.render(f"CPU jugó: {str(carta_cpu_actual)}", True, BLANCO)
+            VENTANA.blit(cpu_ult, (20, 370))
+
+        resultado_texto = FUENTE.render(resultado_turno, True, BLANCO)
+        VENTANA.blit(resultado_texto, (20, 400))
+
+        if not jugador["mano"] or not cpu["mano"]:
+            resultado_final = "Empate"
+            if not jugador["mano"] and cpu["mano"]:
+                resultado_final = "Perdiste"
+            elif not cpu["mano"] and jugador["mano"]:
+                resultado_final = "Ganaste"
+            fin = FUENTE.render(f"Fin del juego: {resultado_final}", True, ROJO)
+            VENTANA.blit(fin, (ANCHO // 2 - 150, ALTO // 2))
+            pygame.display.flip()
+            pygame.time.delay(4000)
+            break
+
+        pygame.display.flip()
+        reloj.tick(30)
+
+    pygame.quit()
+    sys.exit()
+
 if __name__ == "__main__":
-    jugar()
+    main()
